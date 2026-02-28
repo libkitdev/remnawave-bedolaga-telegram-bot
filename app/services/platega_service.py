@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -15,7 +14,6 @@ from app.config import settings
 
 
 logger = structlog.get_logger(__name__)
-std_logger = logging.getLogger(__name__)
 
 
 class PlategaService:
@@ -186,7 +184,6 @@ class PlategaService:
             return cleaned
 
         logger.debug('Platega description trimmed from to bytes', encoded_count=len(encoded), max_bytes=max_bytes)
-        std_logger.debug('Platega description trimmed to %s bytes', max_bytes)
 
         trimmed_bytes = encoded[:max_bytes]
         while True:

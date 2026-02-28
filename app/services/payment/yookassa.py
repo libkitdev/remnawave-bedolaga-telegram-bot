@@ -392,12 +392,9 @@ class YooKassaPaymentMixin:
 
             from app.database.models import YooKassaPayment as YKPayment
 
-            # Lock the payment row to prevent concurrent double-processing.
-            # В тестах может приходить упрощенный объект без локального `id`.
-            payment_id = getattr(payment, 'id', None)
-            if payment_id is not None:
-                locked_result = await db.execute(select(YKPayment).where(YKPayment.id == payment_id).with_for_update())
-                payment = locked_result.scalar_one()
+            # Lock the payment row to prevent concurrent double-processing
+            locked_result = await db.execute(select(YKPayment).where(YKPayment.id == payment.id).with_for_update())
+            payment = locked_result.scalar_one()
 
             # Fast-path: already processed
             if getattr(payment, 'transaction_id', None):
@@ -1133,15 +1130,10 @@ class YooKassaPaymentMixin:
 
             from app.database.models import YooKassaPayment as YooKassaPaymentModel
 
-            payment_id = getattr(payment, 'id', None)
-            where_clause = (
-                YooKassaPaymentModel.id == payment_id
-                if payment_id is not None
-                else YooKassaPaymentModel.yookassa_payment_id == payment.yookassa_payment_id
-            )
-
             await db.execute(
-                update(YooKassaPaymentModel).where(where_clause).values(metadata_json=updated_metadata, updated_at=datetime.now(UTC))
+                update(YooKassaPaymentModel)
+                .where(YooKassaPaymentModel.id == payment.id)
+                .values(metadata_json=updated_metadata, updated_at=datetime.now(UTC))
             )
             if commit:
                 await db.commit()
@@ -1231,7 +1223,7 @@ class YooKassaPaymentMixin:
         yookassa_payment_id = event_object.get('id')
 
         if not yookassa_payment_id:
-            logger.warning('Webhook без payment id', event_payload=event)
+            logger.warning('Webhook без payment id', event=event)
             return False
 
         remote_data: dict[str, Any] | None = None
@@ -1337,8 +1329,9 @@ class YooKassaPaymentMixin:
 
         # Verify user exists before creating FK-linked record
         try:
-            payment_module = import_module('app.services.payment_service')
-            user = await payment_module.get_user_by_id(db, user_id)
+            from app.database.crud.user import get_user_by_id
+
+            user = await get_user_by_id(db, user_id)
             if not user:
                 logger.warning(
                     'Webhook YooKassa : user_id= не найден в БД, пропускаем восстановление платежа',
