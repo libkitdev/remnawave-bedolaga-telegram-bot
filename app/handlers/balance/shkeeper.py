@@ -72,7 +72,9 @@ async def process_shkeeper_payment_amount(
         return
 
     if amount_kopeks < settings.SHKEEPER_MIN_AMOUNT_KOPEKS:
-        await message.answer(f'Минимальная сумма пополнения: {settings.format_price(settings.SHKEEPER_MIN_AMOUNT_KOPEKS)}')
+        await message.answer(
+            f'Минимальная сумма пополнения: {settings.format_price(settings.SHKEEPER_MIN_AMOUNT_KOPEKS)}'
+        )
         return
 
     if amount_kopeks > settings.SHKEEPER_MAX_AMOUNT_KOPEKS:
@@ -101,7 +103,11 @@ async def process_shkeeper_payment_amount(
     keyboard = types.InlineKeyboardMarkup(
         inline_keyboard=[
             [types.InlineKeyboardButton(text='💳 Оплатить через SHKeeper', url=payment_url)],
-            [types.InlineKeyboardButton(text='📊 Проверить статус', callback_data=f'check_shkeeper_{local_payment_id}')],
+            [
+                types.InlineKeyboardButton(
+                    text='📊 Проверить статус', callback_data=f'check_shkeeper_{local_payment_id}'
+                )
+            ],
             [types.InlineKeyboardButton(text=texts.BACK, callback_data='balance_topup')],
         ]
     )

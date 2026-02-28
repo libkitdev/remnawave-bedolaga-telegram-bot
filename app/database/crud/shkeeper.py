@@ -122,4 +122,3 @@ async def update_shkeeper_payment_status(
     await db.refresh(payment)
     logger.info('Обновлен платеж SHKeeper', order_id=payment.order_id, status=payment.status, is_paid=payment.is_paid)
     return payment
-

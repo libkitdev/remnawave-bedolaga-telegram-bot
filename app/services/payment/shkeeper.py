@@ -80,10 +80,7 @@ class ShkeeperPaymentMixin:
         invoice_id = str(response.get('id') or response.get('invoice_id') or '')
         external_id = str(response.get('external_id') or order_id)
         payment_url = (
-            response.get('url')
-            or response.get('payment_url')
-            or response.get('link')
-            or response.get('checkout_url')
+            response.get('url') or response.get('payment_url') or response.get('link') or response.get('checkout_url')
         )
         status = str(response.get('status') or 'new')
 
@@ -198,9 +195,12 @@ class ShkeeperPaymentMixin:
                 db,
                 payment=payment,
                 status=status,
-                shkeeper_invoice_id=str(remote.get('id') or remote.get('invoice_id') or '') or payment.shkeeper_invoice_id,
-                amount_crypto=str(remote.get('amount_crypto') or remote.get('crypto_amount') or '') or payment.amount_crypto,
-                display_amount=str(remote.get('display_amount') or remote.get('amount') or '') or payment.display_amount,
+                shkeeper_invoice_id=str(remote.get('id') or remote.get('invoice_id') or '')
+                or payment.shkeeper_invoice_id,
+                amount_crypto=str(remote.get('amount_crypto') or remote.get('crypto_amount') or '')
+                or payment.amount_crypto,
+                display_amount=str(remote.get('display_amount') or remote.get('amount') or '')
+                or payment.display_amount,
                 metadata_json={**(payment.metadata_json or {}), 'last_status_response': remote},
             )
             if not payment.is_paid and (paid_flag or status in PAID_STATUSES):
@@ -213,7 +213,9 @@ class ShkeeperPaymentMixin:
         payment_module = import_module('app.services.payment_service')
 
         if payment.transaction_id:
-            logger.info('SHKeeper платеж уже обработан', order_id=payment.order_id, transaction_id=payment.transaction_id)
+            logger.info(
+                'SHKeeper платеж уже обработан', order_id=payment.order_id, transaction_id=payment.transaction_id
+            )
             return True
 
         transaction = await payment_module.create_transaction(
