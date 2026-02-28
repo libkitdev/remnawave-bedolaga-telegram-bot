@@ -89,32 +89,29 @@ class ShkeeperService:
     async def create_invoice(
         self,
         *,
-        amount_kopeks: int,
+        amount_usd: float,
         order_id: str,
         description: str,
         callback_url: str | None = None,
         success_url: str | None = None,
         fail_url: str | None = None,
     ) -> dict[str, Any]:
-        amount = round(amount_kopeks / 100, 2)
+        crypto = (settings.SHKEEPER_CRYPTO or 'USDT').strip()
         payload: dict[str, Any] = {
-            'amount': amount,
-            'currency': 'RUB',
             'external_id': order_id,
-            'cryptocurrency': settings.SHKEEPER_CRYPTO,
+            'amount': f'{amount_usd:.2f}',
             'description': description,
         }
 
         if callback_url:
             payload['callback_url'] = callback_url
-            payload['webhook'] = callback_url
         if success_url:
             payload['success_url'] = success_url
         if fail_url:
             payload['fail_url'] = fail_url
 
-        logger.info('Создаем инвойс SHKeeper', order_id=order_id, amount=amount, crypto=settings.SHKEEPER_CRYPTO)
-        response = await self._request('POST', '/api/v1/invoice', json_payload=payload)
+        logger.info('Создаем инвойс SHKeeper', order_id=order_id, amount_usd=amount_usd, crypto=crypto)
+        response = await self._request('POST', f'/api/v1/{crypto}/payment_request', json_payload=payload)
         logger.debug('Ответ SHKeeper create_invoice', response=response)
         return response
 
@@ -124,12 +121,10 @@ class ShkeeperService:
         invoice_id: str | None = None,
         external_id: str | None = None,
     ) -> dict[str, Any]:
-        if invoice_id:
-            return await self._request('GET', f'/api/v1/invoice/{invoice_id}')
         if external_id:
-            # В SHKeeper основной поисковый ключ обычно external_id при callback,
-            # поэтому используем endpoint со списком, если доступен.
-            return await self._request('GET', f'/api/v1/invoice/external/{external_id}')
+            return await self._request('GET', f'/api/v1/invoices/{external_id}')
+        if invoice_id:
+            return await self._request('GET', f'/api/v1/invoices/{invoice_id}')
         raise ShkeeperAPIError('Не передан invoice_id или external_id')
 
     @staticmethod

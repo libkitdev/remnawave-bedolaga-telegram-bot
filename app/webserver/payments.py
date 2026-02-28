@@ -602,7 +602,7 @@ def create_payment_router(bot: Bot, payment_service: PaymentService) -> APIRoute
                 'process_shkeeper_webhook',
             )
             if success:
-                return JSONResponse({'status': 'ok'})
+                return JSONResponse({'status': 'accepted'}, status_code=status.HTTP_202_ACCEPTED)
 
             return JSONResponse(
                 {'status': 'error', 'reason': 'not_processed'},

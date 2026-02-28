@@ -17,6 +17,7 @@ from app.services.subscription_auto_purchase_service import (
 )
 from app.utils.payment_logger import payment_logger as logger
 from app.utils.user_utils import format_referrer_info
+from app.utils.currency_converter import currency_converter
 
 
 PAID_STATUSES = {'paid', 'success', 'completed', 'confirmed'}
@@ -61,8 +62,10 @@ class ShkeeperPaymentMixin:
             callback_url = f'{settings.WEBHOOK_URL}{settings.SHKEEPER_WEBHOOK_PATH}'
 
         try:
+            amount_rubles = amount_kopeks / 100
+            amount_usd = await currency_converter.rub_to_usd(amount_rubles)
             response = await self.shkeeper_service.create_invoice(  # type: ignore[union-attr]
-                amount_kopeks=amount_kopeks,
+                amount_usd=amount_usd,
                 order_id=order_id,
                 description=description,
                 callback_url=callback_url,
@@ -164,7 +167,8 @@ class ShkeeperPaymentMixin:
         if payment.is_paid:
             return True
 
-        if status in PAID_STATUSES:
+        paid_flag = bool(payload.get('paid'))
+        if paid_flag or status in PAID_STATUSES:
             await self._finalize_shkeeper_payment(db, payment, payload)
 
         return True
@@ -189,6 +193,7 @@ class ShkeeperPaymentMixin:
 
         if remote:
             status = str(remote.get('status') or payment.status).strip().lower()
+            paid_flag = bool(remote.get('paid'))
             payment = await payment_module.update_shkeeper_payment_status(
                 db,
                 payment=payment,
@@ -198,7 +203,7 @@ class ShkeeperPaymentMixin:
                 display_amount=str(remote.get('display_amount') or remote.get('amount') or '') or payment.display_amount,
                 metadata_json={**(payment.metadata_json or {}), 'last_status_response': remote},
             )
-            if not payment.is_paid and status in PAID_STATUSES:
+            if not payment.is_paid and (paid_flag or status in PAID_STATUSES):
                 await self._finalize_shkeeper_payment(db, payment, remote)
                 payment = await payment_module.get_shkeeper_payment_by_id(db, local_payment_id)
 
