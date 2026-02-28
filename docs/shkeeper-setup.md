@@ -93,14 +93,15 @@ SHKEEPER_WEBHOOK_PATH=/shkeeper-webhook
 
 `https://bot.example.com/shkeeper-webhook`
 
-## 5. Перезапуск и миграции
+## 5. Перезапуск (миграции автоматически)
 
 После изменения `.env`:
 
 ```bash
-make migrate
 make reload
 ```
+
+`make reload` достаточно: при старте бот сам применяет Alembic-миграции автоматически.
 
 Или через docker compose:
 
@@ -108,16 +109,70 @@ make reload
 docker compose up -d --build
 ```
 
-## 6. Что включается в интерфейсе бота
+## 6. Reverse proxy для webhook (Caddy/Nginx)
+
+Ниже примеры, как опубликовать endpoint webhook бота `https://bot.example.com/shkeeper-webhook`.
+
+### 6.1 Caddy
+
+Если весь домен бота уже проксируется на `127.0.0.1:8080`, отдельный блок не нужен.  
+Если хотите явно выделить webhook-путь:
+
+```caddyfile
+bot.example.com {
+    encode gzip
+
+    handle /shkeeper-webhook* {
+        reverse_proxy 127.0.0.1:8080
+    }
+
+    # Остальные API/webhook пути бота
+    handle {
+        reverse_proxy 127.0.0.1:8080
+    }
+}
+```
+
+### 6.2 Nginx
+
+```nginx
+server {
+    server_name bot.example.com;
+
+    location /shkeeper-webhook {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Остальные API/webhook пути бота
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Важно:
+- endpoint должен быть доступен извне по HTTPS;
+- путь должен совпадать с `SHKEEPER_WEBHOOK_PATH`;
+- в SHKeeper callback URL должен указывать на домен бота, а не на внутренний IP.
+
+## 7. Что включается в интерфейсе бота
 
 После успешной настройки:
 - в Telegram-меню пополнения появится метод `SHKeeper`;
 - метод будет доступен в Cabinet/MiniApp;
 - callback начнёт обрабатываться через `POST /shkeeper-webhook`.
 
-## 7. Проверка работоспособности
+## 8. Проверка работоспособности
 
-### 7.1 Проверка health
+### 8.1 Проверка health
 
 ```bash
 curl -s https://bot.example.com/health/payment-webhooks
@@ -126,7 +181,7 @@ curl -s https://bot.example.com/health/payment-webhooks
 Ожидается поле:
 - `"shkeeper_enabled": true`
 
-### 7.2 Тестовый callback в бот
+### 8.2 Тестовый callback в бот
 
 ```bash
 curl -i -X POST "https://bot.example.com/shkeeper-webhook" \
@@ -142,7 +197,7 @@ curl -i -X POST "https://bot.example.com/shkeeper-webhook" \
 
 Ожидается HTTP `202 Accepted` (callback принят).
 
-## 8. Частые проблемы
+## 9. Частые проблемы
 
 ### `invalid_signature` на webhook
 
@@ -169,4 +224,3 @@ curl -i -X POST "https://bot.example.com/shkeeper-webhook" \
 
 Бот возвращает `202` на успешно принятый callback.  
 Если повторы остаются, проверьте сетевые ошибки между SHKeeper и ботом (TLS, proxy, firewall, timeout).
-
