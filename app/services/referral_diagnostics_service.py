@@ -108,6 +108,12 @@ class DiagnosticReport:
     # Статистика парсинга
     total_lines_parsed: int = 0
     lines_in_period: int = 0
+    # Legacy-совместимость для старых тестов/интерфейсов
+    total_link_clicks: int = 0
+    total_codes_applied: int = 0
+    total_registrations: int = 0
+    users_applied_no_registration: list[int] = field(default_factory=list)
+    events: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Сериализация в dict для хранения в Redis."""
@@ -119,6 +125,11 @@ class DiagnosticReport:
             'analysis_period_end': self.analysis_period_end.isoformat() if self.analysis_period_end else None,
             'total_lines_parsed': self.total_lines_parsed,
             'lines_in_period': self.lines_in_period,
+            'total_link_clicks': self.total_link_clicks,
+            'total_codes_applied': self.total_codes_applied,
+            'total_registrations': self.total_registrations,
+            'users_applied_no_registration': self.users_applied_no_registration,
+            'events': self.events,
         }
 
     @classmethod
@@ -141,7 +152,23 @@ class DiagnosticReport:
             analysis_period_end=end,
             total_lines_parsed=data.get('total_lines_parsed', 0),
             lines_in_period=data.get('lines_in_period', 0),
+            total_link_clicks=data.get('total_link_clicks', 0),
+            total_codes_applied=data.get('total_codes_applied', 0),
+            total_registrations=data.get('total_registrations', 0),
+            users_applied_no_registration=data.get('users_applied_no_registration', []),
+            events=data.get('events', []),
         )
+
+
+@dataclass
+class DiagnosticEvent:
+    """Legacy-событие диагностики для обратной совместимости."""
+
+    timestamp: datetime
+    event_type: str
+    telegram_id: int | None = None
+    code: str | None = None
+    raw_line: str = ''
 
 
 @dataclass
@@ -348,6 +375,7 @@ class ReferralDiagnosticsService:
 
         # 1. Парсим логи — находим все переходы по реф-ссылкам
         clicks, total_lines, lines_in_period = await self._parse_clicks(start_date, end_date)
+        legacy_events = await self._parse_logs(start_date, end_date)
 
         # 2. Группируем по telegram_id (берём последний клик)
         user_clicks: dict[int, ReferralClick] = {}
@@ -357,6 +385,15 @@ class ReferralDiagnosticsService:
         # 3. Сверяем с БД — находим потерянных рефералов
         lost_referrals = await self._find_lost_referrals(db, list(user_clicks.values()))
 
+        applied_ids = {
+            event.telegram_id for event in legacy_events if event.event_type == 'code_applied' and event.telegram_id
+        }
+        registered_ids = {
+            event.telegram_id
+            for event in legacy_events
+            if event.event_type == 'registration_processed' and event.telegram_id
+        }
+
         return DiagnosticReport(
             total_ref_clicks=len(clicks),
             unique_users_clicked=len(user_clicks),
@@ -365,6 +402,11 @@ class ReferralDiagnosticsService:
             analysis_period_end=end_date,
             total_lines_parsed=total_lines,
             lines_in_period=lines_in_period,
+            total_link_clicks=0,
+            total_codes_applied=sum(1 for event in legacy_events if event.event_type == 'code_applied'),
+            total_registrations=sum(1 for event in legacy_events if event.event_type == 'registration_processed'),
+            users_applied_no_registration=sorted(applied_ids - registered_ids),
+            events=[event.__dict__ for event in legacy_events],
         )
 
     async def analyze_file(self, db: AsyncSession, file_path: str) -> DiagnosticReport:
@@ -516,6 +558,90 @@ class ReferralDiagnosticsService:
             clicks_count=len(clicks),
         )
         return clicks, total_lines, lines_in_period
+
+    async def _parse_logs(self, start_date: datetime, end_date: datetime) -> list[DiagnosticEvent]:
+        """Legacy-парсер событий для обратной совместимости со старыми тестами."""
+
+        events: list[DiagnosticEvent] = []
+        if not self.log_path.exists():
+            return events
+
+        timestamp_pattern = re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+\s+-\s+.+?\s+-\s+.+?\s+-\s+(.+)$')
+        code_found_pattern = re.compile(r'Найден реферальный код:\s*<([^>]+)>')
+        code_applied_pattern = re.compile(r'Реферальный код\s+([^\s]+)\s+применен для пользователя\s+(\d+)')
+        registration_pattern = re.compile(r'Реферальная регистрация обработана для\s+(\d+)')
+        bonus_pattern = re.compile(r'Реферал\s+(\d+)\s+получил бонус')
+
+        try:
+            with open(self.log_path, encoding='utf-8', errors='ignore') as file:
+                for raw_line in file:
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+                    if ' | ' in line[:50]:
+                        line = line.split(' | ', 1)[-1]
+
+                    match = timestamp_pattern.match(line)
+                    if not match:
+                        continue
+
+                    timestamp = datetime.strptime(match.group(1), '%Y-%m-%d %H:%M:%S').replace(tzinfo=UTC)
+                    if timestamp < start_date or timestamp >= end_date:
+                        continue
+
+                    message = match.group(2)
+
+                    code_found_match = code_found_pattern.search(message)
+                    if code_found_match:
+                        events.append(
+                            DiagnosticEvent(
+                                timestamp=timestamp,
+                                event_type='code_found',
+                                code=code_found_match.group(1),
+                                raw_line=line,
+                            )
+                        )
+                        continue
+
+                    code_applied_match = code_applied_pattern.search(message)
+                    if code_applied_match:
+                        events.append(
+                            DiagnosticEvent(
+                                timestamp=timestamp,
+                                event_type='code_applied',
+                                telegram_id=int(code_applied_match.group(2)),
+                                code=code_applied_match.group(1),
+                                raw_line=line,
+                            )
+                        )
+                        continue
+
+                    registration_match = registration_pattern.search(message)
+                    if registration_match:
+                        events.append(
+                            DiagnosticEvent(
+                                timestamp=timestamp,
+                                event_type='registration_processed',
+                                telegram_id=int(registration_match.group(1)),
+                                raw_line=line,
+                            )
+                        )
+                        continue
+
+                    bonus_match = bonus_pattern.search(message)
+                    if bonus_match:
+                        events.append(
+                            DiagnosticEvent(
+                                timestamp=timestamp,
+                                event_type='bonus_given',
+                                telegram_id=int(bonus_match.group(1)),
+                                raw_line=line,
+                            )
+                        )
+        except Exception as error:  # pragma: no cover - защитный лог
+            logger.warning('Не удалось распарсить диагностические события из логов', error=error)
+
+        return events
 
     async def _find_lost_referrals(self, db: AsyncSession, clicks: list[ReferralClick]) -> list[LostReferral]:
         """Находит потерянных рефералов — пришли по ссылке, но реферер не засчитался."""
