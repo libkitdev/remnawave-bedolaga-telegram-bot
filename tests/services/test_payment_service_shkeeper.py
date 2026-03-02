@@ -98,7 +98,9 @@ async def test_process_webhook_paid_status_requires_sufficient_amount(monkeypatc
         payment.metadata_json = kwargs['metadata_json']
         return payment
 
-    monkeypatch.setattr(payment_service_module, 'get_shkeeper_payment_by_external_id', fake_get_by_external, raising=False)
+    monkeypatch.setattr(
+        payment_service_module, 'get_shkeeper_payment_by_external_id', fake_get_by_external, raising=False
+    )
     monkeypatch.setattr(payment_service_module, 'update_shkeeper_payment_status', fake_update_status, raising=False)
     monkeypatch.setattr(service, '_is_sufficient_amount', lambda *_args, **_kwargs: False)
     finalize_mock = AsyncMock(return_value=True)
@@ -141,7 +143,9 @@ async def test_process_webhook_overpaid_finalizes_payment(monkeypatch: pytest.Mo
         payment.status = status
         return payment
 
-    monkeypatch.setattr(payment_service_module, 'get_shkeeper_payment_by_external_id', fake_get_by_external, raising=False)
+    monkeypatch.setattr(
+        payment_service_module, 'get_shkeeper_payment_by_external_id', fake_get_by_external, raising=False
+    )
     monkeypatch.setattr(payment_service_module, 'update_shkeeper_payment_status', fake_update_status, raising=False)
     monkeypatch.setattr(service, '_is_sufficient_amount', lambda *_args, **_kwargs: True)
     finalize_mock = AsyncMock(return_value=True)
@@ -185,7 +189,9 @@ async def test_get_status_does_not_finalize_if_amount_insufficient(monkeypatch: 
         assert payment_id == 3
         return payment
 
-    async def fake_update_status(_db: Any, *, payment: Any, status: str, metadata_json: dict[str, Any], **_kwargs: Any) -> Any:
+    async def fake_update_status(
+        _db: Any, *, payment: Any, status: str, metadata_json: dict[str, Any], **_kwargs: Any
+    ) -> Any:
         payment.status = status
         payment.metadata_json = metadata_json
         return payment
@@ -250,7 +256,9 @@ async def test_finalize_shkeeper_payment_updates_balance_once(monkeypatch: pytes
         return None
 
     monkeypatch.setattr('app.services.event_emitter.event_emitter', _Emitter(), raising=False)
-    monkeypatch.setattr('app.services.promo_group_assignment.maybe_assign_promo_group_by_total_spent', _noop, raising=False)
+    monkeypatch.setattr(
+        'app.services.promo_group_assignment.maybe_assign_promo_group_by_total_spent', _noop, raising=False
+    )
     monkeypatch.setattr('app.services.referral_service.process_referral_topup', _noop, raising=False)
     monkeypatch.setattr(shkeeper_module, 'auto_purchase_saved_cart_after_topup', _noop, raising=False)
 
