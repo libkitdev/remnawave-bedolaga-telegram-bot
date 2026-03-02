@@ -102,6 +102,18 @@ def get_available_payment_methods() -> list[dict[str, str]]:
             }
         )
 
+    if settings.is_ton_enabled():
+        ton_name = settings.get_ton_display_name()
+        methods.append(
+            {
+                'id': 'ton',
+                'name': ton_name,
+                'icon': '🔷',
+                'description': 'через TON блокчейн',
+                'callback': 'topup_ton',
+            }
+        )
+
     if settings.is_platega_enabled() and settings.get_platega_active_methods():
         platega_name = settings.get_platega_display_name()
         methods.append(
