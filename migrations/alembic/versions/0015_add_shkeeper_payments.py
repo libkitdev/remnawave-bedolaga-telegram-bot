@@ -1,6 +1,6 @@
 """add shkeeper payments table
 
-Revision ID: 0012
+Revision ID: 0015
 Revises: 0011
 Create Date: 2026-02-28
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision: str = '0012'
+revision: str = '0015'
 down_revision: Union[str, None] = '0011'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
