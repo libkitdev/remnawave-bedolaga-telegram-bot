@@ -596,18 +596,25 @@ def create_payment_router(bot: Bot, payment_service: PaymentService) -> APIRoute
                     status_code=status.HTTP_400_BAD_REQUEST,
                 )
 
-            success = await _process_payment_service_callback(
-                payment_service,
-                payload,
-                'process_shkeeper_webhook',
-            )
-            if success:
-                return JSONResponse({'status': 'accepted'}, status_code=status.HTTP_202_ACCEPTED)
+            try:
+                success = await _process_payment_service_callback(
+                    payment_service,
+                    payload,
+                    'process_shkeeper_webhook',
+                )
+                if success:
+                    return JSONResponse({'status': 'accepted'}, status_code=status.HTTP_202_ACCEPTED)
 
-            return JSONResponse(
-                {'status': 'error', 'reason': 'not_processed'},
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
+                return JSONResponse(
+                    {'status': 'error', 'reason': 'not_processed'},
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+            except Exception as e:
+                logger.exception('SHKeeper webhook processing error', e=e)
+                return JSONResponse(
+                    {'status': 'error', 'reason': 'not_processed'},
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
 
         routes_registered = True
 
