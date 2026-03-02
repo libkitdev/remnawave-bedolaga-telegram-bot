@@ -15,6 +15,7 @@ from app.config import settings
 from app.database.database import get_db
 from app.external import yookassa_webhook as yookassa_webhook_module
 from app.external.heleket_webhook import HeleketWebhookHandler
+from app.external.ton_webhook import TonWebhookHandler
 from app.external.pal24_client import Pal24APIError
 from app.external.tribute import TributeService as TributeAPI
 from app.external.wata_webhook import WataWebhookHandler
@@ -1108,6 +1109,78 @@ def create_payment_router(bot: Bot, payment_service: PaymentService) -> APIRoute
 
         routes_registered = True
 
+    if settings.is_ton_enabled():
+        _ton_handler = TonWebhookHandler(payment_service)
+
+        @router.options(settings.TON_WEBHOOK_PATH)
+        async def ton_options() -> Response:
+            return Response(
+                status_code=status.HTTP_200_OK,
+                headers={
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                },
+            )
+
+        @router.get(settings.TON_WEBHOOK_PATH)
+        async def ton_health() -> JSONResponse:
+            return JSONResponse(
+                {
+                    'status': 'ok',
+                    'service': 'ton_webhook',
+                    'enabled': settings.is_ton_enabled(),
+                }
+            )
+
+        @router.post(settings.TON_WEBHOOK_PATH)
+        async def ton_webhook(request: Request) -> JSONResponse:
+            auth_header = request.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                return JSONResponse(
+                    {'status': 'error', 'reason': 'unauthorized'},
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                )
+            import hmac as _hmac
+
+            token = auth_header[len('Bearer '):]
+            expected = settings.TON_WEBHOOK_SECRET or ''
+            if not _hmac.compare_digest(token.encode(), expected.encode()):
+                return JSONResponse(
+                    {'status': 'error', 'reason': 'unauthorized'},
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                )
+
+            try:
+                payload = await request.json()
+            except json.JSONDecodeError:
+                return JSONResponse(
+                    {'status': 'error', 'reason': 'invalid_json'},
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            try:
+                success = await _process_payment_service_callback(
+                    payment_service,
+                    payload,
+                    'process_ton_webhook',
+                )
+                if success:
+                    return JSONResponse({'status': 'ok'})
+
+                return JSONResponse(
+                    {'status': 'error', 'reason': 'not_processed'},
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+            except Exception as e:
+                logger.exception('TON webhook processing error', e=e)
+                return JSONResponse(
+                    {'status': 'error', 'reason': 'internal_error'},
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+        routes_registered = True
+
     if routes_registered:
 
         @router.get('/health/payment-webhooks')
@@ -1126,6 +1199,7 @@ def create_payment_router(bot: Bot, payment_service: PaymentService) -> APIRoute
                     'cloudpayments_enabled': settings.is_cloudpayments_enabled(),
                     'freekassa_enabled': settings.is_freekassa_enabled(),
                     'kassa_ai_enabled': settings.is_kassa_ai_enabled(),
+                    'ton_enabled': settings.is_ton_enabled(),
                 }
             )
 
