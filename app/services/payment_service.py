@@ -23,6 +23,7 @@ from app.services.payment import (
     PaymentCommonMixin,
     PlategaPaymentMixin,
     TelegramStarsMixin,
+    TonPaymentMixin,
     TributePaymentMixin,
     WataPaymentMixin,
     YooKassaPaymentMixin,
@@ -272,6 +273,31 @@ async def link_heleket_payment_to_transaction(*args, **kwargs):
     return await heleket_crud.link_heleket_payment_to_transaction(*args, **kwargs)
 
 
+async def create_ton_payment(*args, **kwargs):
+    ton_crud = import_module('app.database.crud.ton')
+    return await ton_crud.create_ton_payment(*args, **kwargs)
+
+
+async def get_ton_payment_by_memo(*args, **kwargs):
+    ton_crud = import_module('app.database.crud.ton')
+    return await ton_crud.get_ton_payment_by_memo(*args, **kwargs)
+
+
+async def get_ton_payment_by_id(*args, **kwargs):
+    ton_crud = import_module('app.database.crud.ton')
+    return await ton_crud.get_ton_payment_by_id(*args, **kwargs)
+
+
+async def update_ton_payment(*args, **kwargs):
+    ton_crud = import_module('app.database.crud.ton')
+    return await ton_crud.update_ton_payment(*args, **kwargs)
+
+
+async def link_ton_payment_to_transaction(*args, **kwargs):
+    ton_crud = import_module('app.database.crud.ton')
+    return await ton_crud.link_ton_payment_to_transaction(*args, **kwargs)
+
+
 async def create_cloudpayments_payment(*args, **kwargs):
     cloudpayments_crud = import_module('app.database.crud.cloudpayments')
     return await cloudpayments_crud.create_cloudpayments_payment(*args, **kwargs)
@@ -299,6 +325,7 @@ class PaymentService(
     TributePaymentMixin,
     CryptoBotPaymentMixin,
     HeleketPaymentMixin,
+    TonPaymentMixin,
     MulenPayPaymentMixin,
     Pal24PaymentMixin,
     PlategaPaymentMixin,
@@ -323,6 +350,13 @@ class PaymentService(
         self.wata_service = WataService() if settings.is_wata_enabled() else None
         self.cloudpayments_service = CloudPaymentsService() if settings.is_cloudpayments_enabled() else None
         self.nalogo_service = NaloGoService() if settings.is_nalogo_enabled() else None
+
+        if settings.is_ton_enabled():
+            from app.services.ton_price_service import TonPriceService
+
+            self.ton_price_service = TonPriceService()
+        else:
+            self.ton_price_service = None
 
         mulenpay_name = settings.get_mulenpay_display_name()
         logger.debug(
