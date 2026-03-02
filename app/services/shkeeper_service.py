@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 from datetime import UTC, datetime
 from typing import Any
 
@@ -50,7 +51,7 @@ class ShkeeperService:
     def verify_callback_auth(self, header_value: str | None) -> bool:
         expected = (self.callback_api_key or '').strip()
         actual = (header_value or '').strip()
-        return bool(expected and actual and expected == actual)
+        return bool(expected and actual and hmac.compare_digest(expected, actual))
 
     async def _request(self, method: str, path: str, *, json_payload: dict[str, Any] | None = None) -> dict[str, Any]:
         if not self.is_configured:
