@@ -34,7 +34,7 @@ def _create_cors_response() -> Response:
             'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
             'Access-Control-Allow-Headers': (
                 'Content-Type, trbt-signature, Crypto-Pay-API-Signature, '
-                'X-MulenPay-Signature, X-Shkeeper-API-Key, Authorization'
+                'X-MulenPay-Signature, Authorization'
             ),
         },
     )
