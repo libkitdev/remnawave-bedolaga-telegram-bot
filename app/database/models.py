@@ -148,6 +148,7 @@ class PaymentMethod(Enum):
     YOOKASSA = 'yookassa'
     CRYPTOBOT = 'cryptobot'
     HELEKET = 'heleket'
+    TON = 'ton'
     MULENPAY = 'mulenpay'
     PAL24 = 'pal24'
     WATA = 'wata'
@@ -343,6 +344,41 @@ class HeleketPayment(Base):
             f'<HeleketPayment(id={self.id}, uuid={self.uuid}, order_id={self.order_id}, amount={self.amount}'
             f' {self.currency}, status={self.status})>'
         )
+
+
+class TonPayment(Base):
+    __tablename__ = 'ton_payments'
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+
+    memo = Column(String(64), unique=True, nullable=False, index=True)
+
+    amount_kopeks = Column(Integer, nullable=False)
+    amount_nano = Column(BigInteger, nullable=False)
+
+    status = Column(String(50), nullable=False, default='pending')
+    ton_hash = Column(String(64), unique=True, nullable=True)
+
+    metadata_json = Column(JSON, nullable=True)
+    callback_payload = Column(JSON, nullable=True)
+
+    transaction_id = Column(Integer, ForeignKey('transactions.id'), nullable=True)
+
+    paid_at = Column(AwareDateTime(), nullable=True)
+    expires_at = Column(AwareDateTime(), nullable=True)
+    created_at = Column(AwareDateTime(), default=func.now())
+    updated_at = Column(AwareDateTime(), default=func.now(), onupdate=func.now())
+
+    user = relationship('User', backref='ton_payments')
+    transaction = relationship('Transaction', backref='ton_payment')
+
+    @property
+    def is_paid(self) -> bool:
+        return self.status == 'paid'
+
+    def __repr__(self):
+        return f'<TonPayment(id={self.id}, memo={self.memo}, amount_nano={self.amount_nano}, status={self.status})>'
 
 
 class MulenPayPayment(Base):

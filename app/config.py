@@ -411,6 +411,16 @@ class Settings(BaseSettings):
     MULENPAY_IFRAME_EXPECTED_ORIGIN: str | None = None
     MULENPAY_WEBSITE_URL: str | None = None
 
+    TON_ENABLED: bool = False
+    TON_DISPLAY_NAME: str = 'TON'
+    TON_WALLET_ADDRESS: str | None = None
+    TON_WEBHOOK_SECRET: str | None = None
+    TON_WEBHOOK_PATH: str = '/ton-webhook'
+    TON_INVOICE_TTL_MINUTES: int = 60
+    TON_MIN_AMOUNT_KOPEKS: int = 10000
+    TON_MAX_AMOUNT_KOPEKS: int = 100_000_000
+    TON_MIN_AMOUNT_RATIO: float = 0.97
+
     PAL24_ENABLED: bool = False
     PAL24_DISPLAY_NAME: str = 'PAL24'
     PAL24_API_TOKEN: str | None = None
@@ -1609,6 +1619,13 @@ class Settings(BaseSettings):
     def get_heleket_display_name(self) -> str:
         name = (self.HELEKET_DISPLAY_NAME or '').strip()
         return name if name else 'Heleket Crypto'
+
+    def is_ton_enabled(self) -> bool:
+        return self.TON_ENABLED and bool(self.TON_WALLET_ADDRESS) and bool(self.TON_WEBHOOK_SECRET)
+
+    def get_ton_display_name(self) -> str:
+        name = (self.TON_DISPLAY_NAME or '').strip()
+        return name if name else 'TON'
 
     def is_mulenpay_enabled(self) -> bool:
         return (
