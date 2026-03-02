@@ -23,6 +23,45 @@ from app.utils.user_utils import format_referrer_info
 
 
 PAID_STATUSES = {'paid', 'success', 'completed', 'confirmed', 'overpaid'}
+ALLOWED_STATUSES = {
+    'new',
+    'pending',
+    'processing',
+    'paid',
+    'success',
+    'completed',
+    'confirmed',
+    'overpaid',
+    'failed',
+    'expired',
+    'cancelled',
+    'partial',
+}
+STATUS_ALIASES = {
+    'created': 'new',
+    'waiting': 'pending',
+    'in_progress': 'processing',
+    'in-progress': 'processing',
+    'succeeded': 'success',
+    'canceled': 'cancelled',
+    'partially_paid': 'partial',
+    'partially-paid': 'partial',
+}
+
+
+def _normalize_status(raw_status: Any, fallback: str) -> str:
+    value = str(raw_status or '').strip().lower()
+    if not value:
+        return fallback
+    normalized = STATUS_ALIASES.get(value, value)
+    if normalized in ALLOWED_STATUSES:
+        return normalized
+    logger.warning(
+        'SHKeeper: получен неизвестный статус, используем fallback',
+        raw_status=value,
+        fallback=fallback,
+    )
+    return fallback
 
 
 def _parse_decimal(value: Any) -> Decimal | None:
@@ -149,7 +188,7 @@ class ShkeeperPaymentMixin:
         payment_url = (
             response.get('url') or response.get('payment_url') or response.get('link') or response.get('checkout_url')
         )
-        status = str(response.get('status') or 'new')
+        status = _normalize_status(response.get('status'), 'new')
 
         if not payment_url:
             logger.error('SHKeeper не вернул ссылку на оплату', response=response)
@@ -198,7 +237,7 @@ class ShkeeperPaymentMixin:
 
         external_id = str(payload.get('external_id') or payload.get('order_id') or '')
         invoice_id = str(payload.get('id') or payload.get('invoice_id') or '')
-        status = str(payload.get('status') or payload.get('payment_status') or '').strip().lower()
+        status = _normalize_status(payload.get('status') or payload.get('payment_status'), 'pending')
 
         payment = None
         if external_id:
@@ -218,7 +257,7 @@ class ShkeeperPaymentMixin:
         payment = await payment_module.update_shkeeper_payment_status(
             db,
             payment=payment,
-            status=status or payment.status,
+            status=status or _normalize_status(payment.status, 'pending'),
             shkeeper_invoice_id=invoice_id or None,
             external_id=external_id or payment.external_id,
             amount_crypto=str(payload.get('amount_crypto') or payload.get('crypto_amount') or '') or None,
@@ -258,7 +297,7 @@ class ShkeeperPaymentMixin:
             logger.warning('Ошибка запроса статуса SHKeeper', error=error, payment_id=payment.id)
 
         if remote:
-            status = str(remote.get('status') or payment.status).strip().lower()
+            status = _normalize_status(remote.get('status'), _normalize_status(payment.status, 'pending'))
             paid_flag = bool(remote.get('paid'))
             payment = await payment_module.update_shkeeper_payment_status(
                 db,
