@@ -106,6 +106,13 @@ async def route_payment_by_method(
             await process_heleket_payment_amount(message, db_user, db, amount_kopeks, state)
         return True
 
+    if payment_method == 'ton':
+        from .ton import process_ton_payment_amount
+
+        async with AsyncSessionLocal() as db:
+            await process_ton_payment_amount(message, db_user, db, amount_kopeks, state)
+        return True
+
     if payment_method == 'cloudpayments':
         from .cloudpayments import process_cloudpayments_payment_amount
 
@@ -834,6 +841,11 @@ def register_balance_handlers(dp: Dispatcher):
 
     dp.callback_query.register(start_heleket_payment, F.data == 'topup_heleket')
     dp.callback_query.register(check_heleket_payment_status, F.data.startswith('check_heleket_'))
+
+    from .ton import check_ton_payment_status, start_ton_payment
+
+    dp.callback_query.register(start_ton_payment, F.data == 'topup_ton')
+    dp.callback_query.register(check_ton_payment_status, F.data.startswith('check_ton_'))
 
     from .cloudpayments import handle_cloudpayments_quick_amount, start_cloudpayments_payment
 
