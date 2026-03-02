@@ -22,7 +22,7 @@ from app.utils.payment_logger import payment_logger as logger
 from app.utils.user_utils import format_referrer_info
 
 
-PAID_STATUSES = {'paid', 'success', 'completed', 'confirmed'}
+PAID_STATUSES = {'paid', 'success', 'completed', 'confirmed', 'overpaid'}
 
 
 def _parse_decimal(value: Any) -> Decimal | None:
