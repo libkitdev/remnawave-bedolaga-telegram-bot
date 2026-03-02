@@ -471,8 +471,6 @@ class Settings(BaseSettings):
     SHKEEPER_MAX_AMOUNT_KOPEKS: int = 100000000
     SHKEEPER_REQUEST_TIMEOUT: int = 30
     SHKEEPER_WEBHOOK_PATH: str = '/shkeeper-webhook'
-    SHKEEPER_WEBHOOK_HOST: str = '0.0.0.0'
-    SHKEEPER_WEBHOOK_PORT: int = 8090
 
     # CloudPayments
     CLOUDPAYMENTS_ENABLED: bool = False
